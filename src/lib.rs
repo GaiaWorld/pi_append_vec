@@ -13,19 +13,11 @@ pub struct AppendVec<T: Null> {
     inserting: ShareUsize,
 }
 impl<T: Null> AppendVec<T> {
-    /// Creates an empty [`AppendVec`] with the given capacity and a custom key
-    /// type.
-    ///
-    /// The slot map will not reallocate until it holds at least `capacity`
-    /// elements.
+    /// Creates an empty [`AppendVec`] with the given capacity.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use pi_slot::*;
-    /// new_key_type! {
-    ///     struct MessageKey;
-    /// }
     /// let mut vec = AppendVec::with_capacity(3);
     /// let welcome: MessageKey = vec.insert("Welcome");
     /// let good_day = messages.insert("Good day");
@@ -56,9 +48,6 @@ impl<T: Null> AppendVec<T> {
         index
     }
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        if self.len() <= index {
-            return None;
-        }
         self.arr.get_mut(index)
     }
     pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
