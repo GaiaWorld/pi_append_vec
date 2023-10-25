@@ -6,7 +6,6 @@ use pi_arr::*;
 use pi_null::Null;
 use pi_share::ShareUsize;
 
-#[derive(Default)]
 pub struct AppendVec<T: Null> {
     arr: Arr<T>,
     max: ShareUsize,
@@ -83,6 +82,12 @@ impl<T: Null> IndexMut<usize> for AppendVec<T> {
 impl<T: Null + Debug> Debug for AppendVec<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl<T: Null> Default for AppendVec<T> {
+    fn default() -> Self {
+        Self::with_capacity(0)
     }
 }
 
