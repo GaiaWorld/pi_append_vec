@@ -66,6 +66,10 @@ impl<T: Null> AppendVec<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         self.arr.slice(0..self.len())
     }
+    pub unsafe fn clear(&self) {
+        self.inserting.store(0, Ordering::Release);
+        self.max.store(0, Ordering::Release);
+    }
 }
 impl<T: Null> Index<usize> for AppendVec<T> {
     type Output = T;
