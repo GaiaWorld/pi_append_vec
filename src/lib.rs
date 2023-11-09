@@ -40,7 +40,7 @@ impl<T: Null> AppendVec<T> {
         self.arr.get_unchecked(index)
     }
     pub fn set(&mut self, value: T) -> usize {
-        let index = self.inserting.fetch_add(1, Ordering::AcqRel);
+        let index = self.inserting.fetch_add(1, Ordering::Relaxed);
         let i = self.arr.get_alloc(index);
         *i = value;
         self.max.store(index, Ordering::Release);
@@ -52,8 +52,23 @@ impl<T: Null> AppendVec<T> {
     pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
         self.arr.get_unchecked_mut(index)
     }
+    pub fn load(&self, index: usize) -> Option<&mut T> {
+        self.arr.load(index)
+    }
+    pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
+        self.arr.load_unchecked(index)
+    }
+    pub fn insert_entry<'a>(&'a self) -> Entry<'a, T> {
+        let index = self.inserting.fetch_add(1, Ordering::Relaxed);
+        Entry {
+            index,
+            max: &self.max,
+            value: self.arr.load_alloc(index),
+        }
+    }
+
     pub fn insert(&self, value: T) -> usize {
-        let index = self.inserting.fetch_add(1, Ordering::AcqRel);
+        let index = self.inserting.fetch_add(1, Ordering::Relaxed);
         let i = self.arr.load_alloc(index);
         *i = value;
         while self
@@ -67,7 +82,7 @@ impl<T: Null> AppendVec<T> {
         self.arr.slice(0..self.len())
     }
     pub unsafe fn clear(&self) {
-        self.inserting.store(0, Ordering::Release);
+        self.inserting.store(0, Ordering::Relaxed);
         self.max.store(0, Ordering::Release);
     }
 }
@@ -95,6 +110,31 @@ impl<T: Null> Default for AppendVec<T> {
     }
 }
 
+pub struct Entry<'a, T> {
+    index: usize,
+    max: &'a ShareUsize,
+    pub value: &'a mut T,
+}
+impl<'a, T> Entry<'_, T> {
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+impl<'a, T> Drop for Entry<'_, T> {
+    fn drop(&mut self) {
+        while self
+            .max
+            .compare_exchange(
+                self.index,
+                self.index + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_err()
+        {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -110,7 +150,11 @@ mod tests {
         assert_eq!(unsafe { vec.get_unchecked(hello1) }, &"Hello");
         *vec.get_mut(hello1).unwrap() = "Hello1";
         assert_eq!(vec[hello1], "Hello1");
-        assert_eq!(vec.len(), 3);
+        {
+            let e = vec.insert_entry();
+            *e.value = "Hello2";
+        }
+        assert_eq!(vec.len(), 4);
         println!("vec: {:?}", vec);
     }
 }
