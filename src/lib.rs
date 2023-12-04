@@ -1,5 +1,5 @@
 use core::fmt::*;
-use std::ops::{Index, IndexMut};
+use std::ops::{Index, IndexMut, Range};
 use std::sync::atomic::Ordering;
 
 use pi_arr::*;
@@ -78,9 +78,13 @@ impl<T: Null> AppendVec<T> {
         {}
         index
     }
+    pub fn slice(&self, range: Range<usize>) -> Iter<'_, T> {
+        self.arr.slice(range)
+    }
     pub fn iter(&self) -> Iter<'_, T> {
         self.arr.slice(0..self.len())
     }
+
     pub unsafe fn clear(&self) {
         self.inserting.store(0, Ordering::Relaxed);
         self.max.store(0, Ordering::Release);
