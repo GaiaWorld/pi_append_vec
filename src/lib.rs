@@ -22,6 +22,7 @@ impl<T: Null> AppendVec<T> {
     /// let good_day = messages.insert("Good day");
     /// let hello = messages.insert("Hello");
     /// ```
+    #[inline(always)]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             arr: Arr::with_capacity(capacity),
@@ -30,15 +31,19 @@ impl<T: Null> AppendVec<T> {
         }
     }
     /// 长度
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.max.load(Ordering::Acquire)
     }
+    #[inline(always)]
     pub fn get(&self, index: usize) -> Option<&T> {
         self.arr.get(index)
     }
+    #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         self.arr.get_unchecked(index)
     }
+    #[inline(always)]
     pub fn set(&mut self, value: T) -> usize {
         let index = self.inserting.fetch_add(1, Ordering::Relaxed);
         let i = self.arr.get_alloc(index);
@@ -46,18 +51,23 @@ impl<T: Null> AppendVec<T> {
         self.max.store(index, Ordering::Release);
         index
     }
+    #[inline(always)]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         self.arr.get_mut(index)
     }
+    #[inline(always)]
     pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
         self.arr.get_unchecked_mut(index)
     }
+    #[inline(always)]
     pub fn load(&self, index: usize) -> Option<&mut T> {
         self.arr.load(index)
     }
+    #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
         self.arr.load_unchecked(index)
     }
+    #[inline(always)]
     pub fn insert_entry<'a>(&'a self) -> Entry<'a, T> {
         let index = self.inserting.fetch_add(1, Ordering::Relaxed);
         Entry {
@@ -66,7 +76,7 @@ impl<T: Null> AppendVec<T> {
             value: self.arr.load_alloc(index),
         }
     }
-
+    #[inline(always)]
     pub fn insert(&self, value: T) -> usize {
         let index = self.inserting.fetch_add(1, Ordering::Relaxed);
         let i = self.arr.load_alloc(index);
@@ -78,16 +88,23 @@ impl<T: Null> AppendVec<T> {
         {}
         index
     }
+    #[inline(always)]
     pub fn slice(&self, range: Range<usize>) -> Iter<'_, T> {
         self.arr.slice(range)
     }
+    #[inline(always)]
     pub fn iter(&self) -> Iter<'_, T> {
         self.arr.slice(0..self.len())
     }
-
-    pub unsafe fn clear(&self) {
+    #[inline(always)]
+    pub unsafe fn reset(&self) {
         self.inserting.store(0, Ordering::Relaxed);
         self.max.store(0, Ordering::Release);
+    }
+    #[inline(always)]
+    pub unsafe fn clear(&self) {
+        self.reset();
+        self.arr.clear();
     }
 }
 impl<T: Null> Index<usize> for AppendVec<T> {
