@@ -7,6 +7,9 @@ use pi_arr::*;
 use pi_null::Null;
 use pi_share::ShareUsize;
 
+extern crate pi_arr;
+
+
 pub const DEFALLT_CAPACITY: usize = 32;
 
 pub struct AppendVec<T: Null> {
