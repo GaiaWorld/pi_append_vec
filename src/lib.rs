@@ -75,6 +75,15 @@ impl<T: Null> AppendVec<T> {
         self.arr.get_unchecked(self.vec.capacity() - index)
     }
     #[inline(always)]
+    pub unsafe fn get_0_unchecked(&self, index: usize) -> &T {
+        return unsafe { self.vec.get_unchecked(index) };
+    }
+    #[inline(always)]
+    pub unsafe fn get_1_unchecked(&self, index: usize) -> &T {
+        self.arr.get_unchecked(self.vec.capacity() - index)
+    }
+
+    #[inline(always)]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         let len = *self.len.get_mut();
         if index >= len {
@@ -93,6 +102,14 @@ impl<T: Null> AppendVec<T> {
         self.arr.get_unchecked_mut(self.vec.capacity() - index)
     }
     #[inline(always)]
+    pub unsafe fn get_0_unchecked_mut(&mut self, index: usize) -> &mut T {
+        return self.vec.get_unchecked_mut(index);
+    }
+    #[inline(always)]
+    pub unsafe fn get_1_unchecked_mut(&mut self, index: usize) -> &mut T {
+        self.arr.get_unchecked_mut(self.vec.capacity() - index)
+    }
+    #[inline(always)]
     pub fn load(&self, index: usize) -> Option<&mut T> {
         if index < self.vec.capacity() {
             return Some(self.vec_index_mut(index));
@@ -104,6 +121,14 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return self.vec_index_mut(index);
         }
+        self.arr.load_unchecked(self.vec.capacity() - index)
+    }
+    #[inline(always)]
+    pub unsafe fn load_0_unchecked(&self, index: usize) -> &mut T {
+        return self.vec_index_mut(index);
+    }
+    #[inline(always)]
+    pub unsafe fn load_1_unchecked(&self, index: usize) -> &mut T {
         self.arr.load_unchecked(self.vec.capacity() - index)
     }
     #[inline(always)]
