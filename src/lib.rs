@@ -198,6 +198,14 @@ impl<T: Null> AppendVec<T> {
     pub fn vec_capacity(&self) -> usize {
         self.vec.capacity()
     }
+    /// reserve capacity
+    pub fn reserve(&mut self, additional: u32) {
+        let len = self.len();
+        if len + additional <= self.vec.capacity() {
+            return;
+        }
+        self.collect1(len, additional, multiple)
+    }
     #[inline(always)]
     pub unsafe fn vec_reserve(&mut self, additional: usize) {
         self.vec.reserve(additional);
@@ -210,21 +218,25 @@ impl<T: Null> AppendVec<T> {
         if len <= self.vec.capacity() {
             return;
         }
-        let add = (len - self.vec.capacity()) / multiple;
-        let loc = Location::of(add);
-        let mut add = Location::index(loc.bucket as u32 + 1, 0) * multiple;
+        self.collect1(len, 0, multiple)
+    }
+    #[inline(always)]
+    fn collect1(&mut self, len:usize, additional: usize, multiple: usize) {
+        let len = (len - self.vec.capacity()) / multiple;
+        let loc = Location::of(len);
+        let mut len = Location::index(loc.bucket as u32 + 1, 0) * multiple;
         let mut arr: [Vec<T>; 27] = self.arr.replace(multiple);
         if self.vec.capacity() == 0 {
             // 如果原vec为empty，则直接将arr的0位vec换上
-            add = add.saturating_sub(arr[0].len());
+            len = len.saturating_sub(arr[0].len());
             let _ = replace(&mut self.vec, take(&mut arr[0]));
         }
         // 将vec扩容
-        self.vec.reserve(add);
+        self.vec.reserve(len + additional);
         for mut v in arr.into_iter() {
-            add = add.saturating_sub(v.len());
+            len = len.saturating_sub(v.len());
             self.vec.append(&mut v);
-            if add == 0 {
+            if len == 0 {
                 break;
             }
         }
