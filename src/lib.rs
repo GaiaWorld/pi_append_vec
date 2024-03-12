@@ -199,7 +199,7 @@ impl<T: Null> AppendVec<T> {
         self.vec.capacity()
     }
     /// reserve capacity
-    pub fn reserve(&mut self, additional: u32) {
+    pub fn reserve(&mut self, additional: usize, multiple: usize) {
         let len = self.len();
         if len + additional <= self.vec.capacity() {
             return;
