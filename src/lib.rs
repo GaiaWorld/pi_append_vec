@@ -214,18 +214,18 @@ impl<T: Null> AppendVec<T> {
     pub fn vec_capacity(&self) -> usize {
         self.vec.capacity()
     }
+    #[inline(always)]
+    pub unsafe fn vec_reserve(&mut self, additional: usize) {
+        self.vec.reserve(additional);
+        self.vec.resize_with(self.vec.capacity(), || T::null());
+    }
     /// reserve capacity
     pub fn reserve(&mut self, additional: usize, multiple: usize) {
         let len = self.len();
         if len + additional <= self.vec.capacity() {
             return;
         }
-        self.collect1(len, additional, multiple)
-    }
-    #[inline(always)]
-    pub unsafe fn vec_reserve(&mut self, additional: usize) {
-        self.vec.reserve(additional);
-        self.vec.resize_with(self.vec.capacity(), || T::null());
+        self.collect_raw(len, additional, multiple)
     }
     /// 将arr的内容移动到vec上，让内存连续，并且没有原子操作
     #[inline(always)]
@@ -234,10 +234,10 @@ impl<T: Null> AppendVec<T> {
         if len <= self.vec.capacity() {
             return;
         }
-        self.collect1(len, 0, multiple)
+        self.collect_raw(len, 0, multiple)
     }
     #[inline(always)]
-    fn collect1(&mut self, len:usize, additional: usize, multiple: usize) {
+    pub fn collect_raw(&mut self, len:usize, additional: usize, multiple: usize) {
         let len = (len - self.vec.capacity()) / multiple;
         let loc = Location::of(len);
         let mut len = Location::index(loc.bucket as u32 + 1, 0) * multiple;
