@@ -159,18 +159,18 @@ impl<T: Null> AppendVec<T> {
     }
     #[inline(always)]
     pub fn iter(&self) -> Iter<'_, T> {
-        self.slice1(0..self.len())
+        self.slice_raw(0..self.len())
     }
     #[inline(always)]
     pub fn slice(&self, range: Range<usize>) -> Iter<'_, T> {
         let len = self.len();
         if range.end <= len {
-            return self.slice1(range);
+            return self.slice_raw(range);
         }
-        self.slice1(range.start..len)
+        self.slice_raw(range.start..len)
     }
     #[inline(always)]
-    fn slice1(&self, mut range: Range<usize>) -> Iter<'_, T> {
+    pub fn slice_raw(&self, mut range: Range<usize>) -> Iter<'_, T> {
         let c = self.vec.capacity();
         if range.end <= c {
             return self.arr.iter_with_ptr(
