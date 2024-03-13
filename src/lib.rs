@@ -64,6 +64,10 @@ impl<T: Null> AppendVec<T> {
         if index >= self.len() {
             return None;
         }
+        self.get_i(index)
+    }
+    #[inline(always)]
+    pub fn get_i(&self, index: usize) -> Option<&T> {
         if index < self.vec.capacity() {
             return Some(unsafe { self.vec.get_unchecked(index) });
         }
@@ -91,11 +95,16 @@ impl<T: Null> AppendVec<T> {
         if index >= len {
             return None;
         }
+        self.get_mut_i(index)
+    }
+    #[inline(always)]
+    pub fn get_mut_i(&mut self, index: usize) -> Option<&mut T> {
         if index < self.vec.capacity() {
             return self.vec.get_mut(index);
         }
         self.arr.get_mut(index - self.vec.capacity())
     }
+
     #[inline(always)]
     pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
         if index < self.vec.capacity() {
@@ -113,6 +122,13 @@ impl<T: Null> AppendVec<T> {
     }
     #[inline(always)]
     pub fn load(&self, index: usize) -> Option<&mut T> {
+        if index >= self.len() {
+            return None;
+        }
+        self.load_i(index)
+    }
+    #[inline(always)]
+    pub fn load_i(&self, index: usize) -> Option<&mut T> {
         if index < self.vec.capacity() {
             return Some(self.vec_index_mut(index));
         }
