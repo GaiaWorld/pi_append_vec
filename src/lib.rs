@@ -243,7 +243,6 @@ impl<T: Null> AppendVec<T> {
         for (i, p) in arr.iter().enumerate() {
             if *p != null_mut() {
                 let len = Location::bucket_len(i);
-                println!("{} {:?}", len, p);
                 buckets[i] = unsafe { Vec::from_raw_parts(*p, len, len) };
             }
         }
