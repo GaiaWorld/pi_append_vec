@@ -32,21 +32,7 @@ impl<T: Null> AppendVec<T> {
     /// ```
     #[inline(always)]
     pub fn with_capacity(capacity: usize) -> Self {
-        Self::with_capacity_multiple(capacity, 1)
-    }
-    /// Creates an empty [`AppendVec`] with the given capacity.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut vec = AppendVec::with_capacity(3);
-    /// let welcome: MessageKey = vec.insert("Welcome");
-    /// let good_day = messages.insert("Good day");
-    /// let hello = messages.insert("Hello");
-    /// ```
-    #[inline(always)]
-    pub fn with_capacity_multiple(capacity: usize, multiple: usize) -> Self {
-        let mut vec = Vec::with_capacity(capacity * multiple);
+        let mut vec = Vec::with_capacity(capacity);
         vec.resize_with(vec.capacity(), || T::null());
         Self {
             vec,
@@ -71,24 +57,16 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return Some(unsafe { self.vec.get_unchecked(index) });
         }
-        self.arr.get(index - self.vec.capacity())
+        self.arr.get(&Location::of(index - self.vec.capacity()))
     }
     #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         if index < self.vec.capacity() {
             return unsafe { self.vec.get_unchecked(index) };
         }
-        self.arr.get_unchecked(index - self.vec.capacity())
+        self.arr
+            .get_unchecked(&Location::of(index - self.vec.capacity()))
     }
-    #[inline(always)]
-    pub unsafe fn get_0_unchecked(&self, index: usize) -> &T {
-        return unsafe { self.vec.get_unchecked(index) };
-    }
-    #[inline(always)]
-    pub unsafe fn get_1_unchecked(&self, index: usize) -> &T {
-        self.arr.get_unchecked(index - self.vec.capacity())
-    }
-
     #[inline(always)]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         let len = *self.len.get_mut();
@@ -102,7 +80,7 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return self.vec.get_mut(index);
         }
-        self.arr.get_mut(index - self.vec.capacity())
+        self.arr.get_mut(&Location::of(index - self.vec.capacity()))
     }
 
     #[inline(always)]
@@ -110,15 +88,8 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return self.vec.get_unchecked_mut(index);
         }
-        self.arr.get_unchecked_mut(index - self.vec.capacity())
-    }
-    #[inline(always)]
-    pub unsafe fn get_0_unchecked_mut(&mut self, index: usize) -> &mut T {
-        return self.vec.get_unchecked_mut(index);
-    }
-    #[inline(always)]
-    pub unsafe fn get_1_unchecked_mut(&mut self, index: usize) -> &mut T {
-        self.arr.get_unchecked_mut(index - self.vec.capacity())
+        self.arr
+            .get_unchecked_mut(&Location::of(index - self.vec.capacity()))
     }
     #[inline(always)]
     pub fn load(&self, index: usize) -> Option<&mut T> {
@@ -132,29 +103,23 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return Some(self.vec_index_mut(index));
         }
-        self.arr.load(index)
+        self.arr.load(&Location::of(index))
     }
     #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
         if index < self.vec.capacity() {
             return self.vec_index_mut(index);
         }
-        self.arr.load_unchecked(index - self.vec.capacity())
+        self.arr
+            .load_unchecked(&Location::of(index - self.vec.capacity()))
     }
     #[inline(always)]
-    pub unsafe fn load_0_unchecked(&self, index: usize) -> &mut T {
-        return self.vec_index_mut(index);
-    }
-    #[inline(always)]
-    pub unsafe fn load_1_unchecked(&self, index: usize) -> &mut T {
-        self.arr.load_unchecked(index - self.vec.capacity())
-    }
-    #[inline(always)]
-    pub fn load_alloc(&self, index: usize, multiple: usize) -> &mut T {
+    pub fn load_alloc(&self, index: usize) -> &mut T {
         if index < self.vec.capacity() {
             return self.vec_index_mut(index);
         }
-        self.arr.load_alloc(index - self.vec.capacity(), multiple)
+        self.arr
+            .load_alloc(&Location::of(index - self.vec.capacity()))
     }
     #[inline(always)]
     fn vec_index_mut(&self, index: usize) -> &mut T {
@@ -170,7 +135,7 @@ impl<T: Null> AppendVec<T> {
     #[inline(always)]
     pub fn insert(&self, value: T) -> usize {
         let index = self.alloc_index(1);
-        *self.load_alloc(index, 1) = value;
+        *self.load_alloc(index) = value;
         index
     }
     #[inline(always)]
@@ -220,28 +185,28 @@ impl<T: Null> AppendVec<T> {
         self.vec.resize_with(self.vec.capacity(), || T::null());
     }
     /// reserve capacity
-    pub fn reserve(&mut self, additional: usize, multiple: usize) {
+    pub fn reserve(&mut self, additional: usize) {
         let len = self.len();
         if len + additional <= self.vec.capacity() {
             return;
         }
-        self.collect_raw(len, additional, multiple)
+        self.collect_raw(len, additional)
     }
     /// 将arr的内容移动到vec上，让内存连续，并且没有原子操作
     #[inline(always)]
-    pub fn collect(&mut self, multiple: usize) {
+    pub fn collect(&mut self) {
         let len = self.len();
         if len <= self.vec.capacity() {
             return;
         }
-        self.collect_raw(len, 0, multiple)
+        self.collect_raw(len, 0)
     }
     #[inline(always)]
-    pub fn collect_raw(&mut self, len:usize, additional: usize, multiple: usize) {
-        let len = (len - self.vec.capacity()) / multiple;
+    pub fn collect_raw(&mut self, len: usize, additional: usize) {
+        let len = len - self.vec.capacity();
         let loc = Location::of(len);
-        let mut len = Location::index(loc.bucket as u32 + 1, 0) * multiple;
-        let mut arr: [Vec<T>; 27] = self.arr.replace(multiple);
+        let mut len = Location::index(loc.bucket as u32 + 1, 0);
+        let mut arr = Self::replace(self.arr.replace());
         if self.vec.capacity() == 0 {
             // 如果原vec为empty，则直接将arr的0位vec换上
             len = len.saturating_sub(arr[0].len());
@@ -261,16 +226,26 @@ impl<T: Null> AppendVec<T> {
     }
     /// 清理，并释放arr的内存
     #[inline(always)]
-    pub fn clear(&mut self, multiple: usize) {
+    pub fn clear(&mut self) {
         let len = take(self.len.get_mut());
         if len == 0 {
             return;
         }
         if len > self.vec.capacity() {
-            self.arr.replace(multiple);
+            let _ = Self::replace(self.arr.replace());
         }
         self.vec.clear();
         self.vec.resize_with(self.vec.capacity(), || T::null());
+    }
+    fn replace(arr: [*mut T; BUCKETS]) -> [Vec<T>; BUCKETS] {
+        let mut buckets = [0; BUCKETS].map(|_| Vec::new());
+        for (i, ptr) in arr.iter().enumerate() {
+            if !ptr.is_null() {
+                let len = Location::bucket_len(i);
+                buckets[i] = unsafe { Vec::from_raw_parts(*ptr, len, len) };
+            }
+        }
+        buckets
     }
 }
 impl<T: Null> Index<usize> for AppendVec<T> {
