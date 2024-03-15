@@ -204,8 +204,10 @@ impl<T: Null> AppendVec<T> {
     }
     #[inline(always)]
     pub fn collect_raw(&mut self, len: usize, additional: usize) {
-        let len = len - self.vec.capacity();
-        let loc = Location::of(len);
+        if len <= self.vec.capacity() {
+            return unsafe { self.vec_reserve(additional) };
+        }
+        let loc = Location::of(len - self.vec.capacity());
         let mut len = Location::index(loc.bucket as u32 + 1, 0);
         let mut arr = Self::replace(self.arr.replace());
         if self.vec.capacity() == 0 {

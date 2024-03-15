@@ -1,6 +1,6 @@
 [package]
 name = "pi_append_vec"
-version = "0.3.9"
+version = "0.3.10"
 authors = ["suncy <530739162@qq.com>"]
 edition = "2021"
 description = "Only supports append vectors, lock free "
