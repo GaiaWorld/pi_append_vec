@@ -6,6 +6,7 @@
 use core::fmt::*;
 use std::mem::{replace, take, transmute};
 use std::ops::{Index, IndexMut, Range};
+use std::ptr::null_mut;
 use std::sync::atomic::Ordering;
 
 use pi_arr::*;
@@ -239,10 +240,11 @@ impl<T: Null> AppendVec<T> {
     }
     fn replace(arr: [*mut T; BUCKETS]) -> [Vec<T>; BUCKETS] {
         let mut buckets = [0; BUCKETS].map(|_| Vec::new());
-        for (i, ptr) in arr.iter().enumerate() {
-            if !ptr.is_null() {
+        for (i, p) in arr.iter().enumerate() {
+            if *p != null_mut() {
                 let len = Location::bucket_len(i);
-                buckets[i] = unsafe { Vec::from_raw_parts(*ptr, len, len) };
+                println!("{} {:?}", len, p);
+                buckets[i] = unsafe { Vec::from_raw_parts(*p, len, len) };
             }
         }
         buckets
@@ -293,5 +295,14 @@ mod tests {
         assert_eq!(vec.len(), 3);
         println!("test: {:?}", 3);
         println!("vec: {:?}", vec);
+    }
+    #[test]
+    fn test_removes() {
+        let mut removes: AppendVec<usize> = Default::default();
+        removes.insert(1);
+        removes.insert(2);
+        removes.clear();
+        removes.insert(1);
+        removes.insert(6);
     }
 }
