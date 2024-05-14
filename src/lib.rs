@@ -104,7 +104,7 @@ impl<T: Null> AppendVec<T> {
         if index < self.vec.capacity() {
             return Some(self.vec_index_mut(index));
         }
-        self.arr.load(&Location::of(index))
+        self.arr.load(&Location::of(index - self.vec.capacity()))
     }
     #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
