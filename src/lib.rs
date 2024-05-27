@@ -1,7 +1,7 @@
 //! 兼顾性能和安全的线程安全的vec
 //! 使用一个vec，加线程安全的pi_arr
 //! 正常使用时， vec的内存不会扩大，放不下的数据会放到pi_arr上
-//! 整理方法collect，要求必须mut引用，这时会安全的vec先扩容，然后将pi_arr的数据移动到vec上
+//! 整理方法settle，要求必须mut引用，这时会安全的vec先扩容，然后将pi_arr的数据移动到vec上
 
 use core::fmt::*;
 use std::mem::{replace, take, transmute};
@@ -17,7 +17,7 @@ extern crate pi_arr;
 
 pub struct AppendVec<T: Null> {
     vec: Vec<T>,
-    arr: Arr<T>,
+    arr: Box<Arr<T>>,
     len: ShareUsize,
 }
 impl<T: Null> AppendVec<T> {
@@ -37,7 +37,7 @@ impl<T: Null> AppendVec<T> {
         vec.resize_with(vec.capacity(), || T::null());
         Self {
             vec,
-            arr: Arr::new(),
+            arr: Box::new(Arr::new()),
             len: ShareUsize::new(0),
         }
     }
@@ -191,19 +191,19 @@ impl<T: Null> AppendVec<T> {
         if len + additional <= self.vec.capacity() {
             return;
         }
-        self.collect_raw(len, additional)
+        self.settle_raw(len, additional)
     }
     /// 将arr的内容移动到vec上，让内存连续，并且没有原子操作
     #[inline(always)]
-    pub fn collect(&mut self) {
+    pub fn settle(&mut self) {
         let len = self.len();
         if len <= self.vec.capacity() {
             return;
         }
-        self.collect_raw(len, 0)
+        self.settle_raw(len, 0)
     }
     #[inline(always)]
-    pub fn collect_raw(&mut self, len: usize, additional: usize) {
+    pub fn settle_raw(&mut self, len: usize, additional: usize) {
         if len <= self.vec.capacity() {
             return unsafe { self.vec_reserve(additional) };
         }
