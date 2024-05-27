@@ -16,9 +16,9 @@ use pi_share::ShareUsize;
 extern crate pi_arr;
 
 pub struct AppendVec<T: Null> {
-    vec: Vec<T>,
-    arr: Box<Arr<T>>,
     len: ShareUsize,
+    vec: Vec<T>,
+    arr: Arr<T>,
 }
 impl<T: Null> AppendVec<T> {
     /// Creates an empty [`AppendVec`] with the given capacity.
@@ -36,9 +36,9 @@ impl<T: Null> AppendVec<T> {
         let mut vec = Vec::with_capacity(capacity);
         vec.resize_with(vec.capacity(), || T::null());
         Self {
-            vec,
-            arr: Box::new(Arr::new()),
             len: ShareUsize::new(0),
+            vec,
+            arr: Arr::new(),
         }
     }
     /// 长度
