@@ -4,7 +4,7 @@
 //! 整理方法settle，要求必须mut引用，这时会安全的vec先扩容，然后将pi_arr的数据移动到vec上
 
 use core::fmt::*;
-use std::mem::{replace, take, transmute};
+use std::mem::{replace, size_of, take, transmute};
 use std::ops::{Index, IndexMut, Range};
 use std::ptr::null_mut;
 use std::sync::atomic::Ordering;
@@ -34,7 +34,9 @@ impl<T: Null> AppendVec<T> {
     #[inline(always)]
     pub fn with_capacity(capacity: usize) -> Self {
         let mut vec = Vec::with_capacity(capacity);
-        vec.resize_with(vec.capacity(), || T::null());
+        if size_of::<T>() > 0 {
+            vec.resize_with(vec.capacity(), || T::null());
+        }
         Self {
             len: ShareUsize::new(0),
             vec,
@@ -182,6 +184,9 @@ impl<T: Null> AppendVec<T> {
     }
     #[inline(always)]
     pub unsafe fn vec_reserve(&mut self, additional: usize) {
+        if size_of::<T>() == 0 {
+            return
+        }
         self.vec.reserve(additional);
         self.vec.resize_with(self.vec.capacity(), || T::null());
     }
@@ -204,6 +209,9 @@ impl<T: Null> AppendVec<T> {
     }
     #[inline(always)]
     pub fn settle_raw(&mut self, len: usize, additional: usize) {
+        if size_of::<T>() == 0 {
+            return
+        }
         if len <= self.vec.capacity() {
             return unsafe { self.vec_reserve(additional) };
         }
@@ -238,7 +246,6 @@ impl<T: Null> AppendVec<T> {
             let _ = Self::replace(self.arr.replace());
         }
         self.vec.clear();
-        self.vec.resize_with(self.vec.capacity(), || T::null());
     }
     fn replace(arr: [*mut T; BUCKETS]) -> [Vec<T>; BUCKETS] {
         let mut buckets = [0; BUCKETS].map(|_| Vec::new());
