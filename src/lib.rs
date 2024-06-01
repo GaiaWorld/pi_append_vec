@@ -68,11 +68,11 @@ impl<T: Null> AppendVec<T> {
         if index >= self.len() {
             return None;
         }
-        self.arr.load(index)
+        Some(self.arr.load_alloc(index))
     }
     #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
-        self.arr.load_unchecked(index)
+        self.arr.load_alloc(index)
     }
     #[inline(always)]
     pub fn alloc(&self) -> (&mut T, usize) {
