@@ -9,23 +9,23 @@ use std::ops::{Index, IndexMut, Range};
 use std::sync::atomic::Ordering;
 
 use pi_arr::{Arr, Iter};
-use pi_null::Null;
 use pi_share::ShareUsize;
 
-pub struct AppendVec<T: Null> {
+pub struct AppendVec<T> {
     len: ShareUsize,
     arr: Arr<T>,
 }
-impl<T: Null> AppendVec<T> {
+impl<T: Default> AppendVec<T> {
     /// Creates an empty [`AppendVec`] with the given capacity.
     ///
     /// # Examples
     ///
     /// ```
-    /// let mut vec = AppendVec::with_capacity(3);
-    /// let welcome: MessageKey = vec.insert("Welcome");
-    /// let good_day = messages.insert("Good day");
-    /// let hello = messages.insert("Hello");
+    /// use crate::pi_append_vec::AppendVec;
+    /// let mut vec: AppendVec<&str> = AppendVec::with_capacity(3);
+    /// let welcome = vec.insert("Welcome");
+    /// let good_day = vec.insert("Good day");
+    /// let hello = vec.insert("Hello");
     /// ```
     #[inline(always)]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -132,26 +132,26 @@ impl<T: Null> AppendVec<T> {
         self.arr.clear(len, additional, 1);
     }
 }
-impl<T: Null> Index<usize> for AppendVec<T> {
+impl<T: Default> Index<usize> for AppendVec<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("no element found at index {index}")
     }
 }
-impl<T: Null> IndexMut<usize> for AppendVec<T> {
+impl<T: Default> IndexMut<usize> for AppendVec<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index)
             .expect("no element found at index_mut {index}")
     }
 }
-impl<T: Null + Debug> Debug for AppendVec<T> {
+impl<T: Default + Debug> Debug for AppendVec<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<T: Null> Default for AppendVec<T> {
+impl<T: Default> Default for AppendVec<T> {
     fn default() -> Self {
         Self::with_capacity(0)
     }
@@ -186,5 +186,14 @@ mod tests {
         removes.clear(1);
         removes.insert(1);
         removes.insert(6);
+    }
+
+    #[test]
+    fn test_str() {
+        let vec = AppendVec::with_capacity(4);
+        let _good_day = vec.insert("Good day");
+        let _hello = vec.insert("Hello");
+        assert_eq!(vec.len(), 2);
+        let hello1 = vec.insert("Hello");
     }
 }
