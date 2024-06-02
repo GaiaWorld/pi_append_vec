@@ -195,5 +195,6 @@ mod tests {
         let _hello = vec.insert("Hello");
         assert_eq!(vec.len(), 2);
         let hello1 = vec.insert("Hello");
+        assert_eq!(vec[hello1], "Hello");
     }
 }
