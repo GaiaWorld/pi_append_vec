@@ -120,19 +120,34 @@ impl<T: Default> AppendVec<T> {
     /// 将arr的内容移动到vec上，让内存连续，并且没有原子操作
     #[inline(always)]
     pub fn settle(&mut self, additional: usize) {
-        let len = self.len();
+        let len = *self.len.get_mut();
         if len == 0 {
             return;
         }
         self.arr.settle(len, additional, 1);
     }
+    #[inline(always)]
+    pub fn remain_settle(&mut self, mut range: Range<usize>, additional: usize) {
+        let len = self.len.get_mut();
+        if *len == 0 {
+            return;
+        }
+        let old = *len;
+        if range.end > *len {
+            range.end = *len;
+        }
+        *len = range.len();
+        self.arr.remain_settle(range, old, additional, 1);
+    }
+
     /// 清理，并释放arr的内存
     #[inline(always)]
     pub fn clear(&mut self, additional: usize) {
-        let len = take(self.len.get_mut());
-        if len == 0 {
+        let len = self.len.get_mut();
+        if *len == 0 {
             return;
         }
+        let len = take(len);
         self.arr.clear(len, additional, 1);
     }
 }
@@ -256,6 +271,10 @@ impl<T> SafeVec<T> {
     #[inline(always)]
     pub fn settle(&mut self, additional: usize) {
         self.vec.settle(additional);
+    }
+    #[inline(always)]
+    pub fn remain_settle(&mut self, range: Range<usize>, additional: usize) {
+        self.vec.remain_settle(range, additional);
     }
 
     #[inline(always)]

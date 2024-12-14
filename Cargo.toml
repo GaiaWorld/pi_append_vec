@@ -1,6 +1,6 @@
 [package]
 name = "pi_append_vec"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["suncy <530739162@qq.com>"]
 edition = "2021"
 description = "Only supports append vectors, lock free "
@@ -14,3 +14,4 @@ categories = ["data-structures", "lock free", "vectors"]
 [dependencies]
 pi_arr = "0.19"
 pi_share = "0.4"
+ 
