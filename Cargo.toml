@@ -8,7 +8,7 @@ repository = "https://github.com/GaiaWorld/pi_slot.git"
 license = "MIT OR Apache-2.0"
 keywords = ["pi", "vec", "lock_free"]
 readme = "README.md"
-categories = ["data-structures", "lock free", "vectors"]
+categories = ["data-structures", "concurrency"]
 
 
 [dependencies]
