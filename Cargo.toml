@@ -1,6 +1,6 @@
 [package]
 name = "pi_append_vec"
-version = "0.5.4"
+version = "0.6.0"
 authors = ["suncy <530739162@qq.com>"]
 edition = "2021"
 description = "Only supports append vectors, lock free "
@@ -12,6 +12,6 @@ categories = ["data-structures", "concurrency"]
 
 
 [dependencies]
-pi_arr = "0.19"
-pi_share = "0.4"
+pi_arr = "0.20"
+pi_share = "0.5"
  
