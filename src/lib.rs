@@ -72,7 +72,7 @@ impl<T: Default> AppendVec<T> {
     }
     #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
-        debug_assert!(index >= self.len());
+        debug_assert!(index < self.len());
         self.arr.load_unchecked(index)
     }
     #[inline(always)]
