@@ -72,7 +72,8 @@ impl<T: Default> AppendVec<T> {
     }
     #[inline(always)]
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
-        self.arr.load_alloc(index)
+        debug_assert!(index < self.len());
+        self.arr.load_unchecked(index)
     }
     #[inline(always)]
     pub fn alloc(&self) -> (&mut T, usize) {
