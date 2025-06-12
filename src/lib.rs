@@ -125,7 +125,7 @@ impl<T: Default> AppendVec<T> {
         if len == 0 {
             return;
         }
-        self.arr.settle(len, additional, 1);
+        self.arr.settle(len, additional);
     }
     #[inline(always)]
     pub fn remain_settle(&mut self, mut range: Range<usize>, additional: usize) {
@@ -138,7 +138,7 @@ impl<T: Default> AppendVec<T> {
             range.end = *len;
         }
         *len = range.len();
-        self.arr.remain_settle(range, old, additional, 1);
+        self.arr.remain_settle(range, old, additional);
     }
 
     /// 清理，并释放arr的内存
@@ -149,7 +149,7 @@ impl<T: Default> AppendVec<T> {
             return;
         }
         let len = take(len);
-        self.arr.clear(len, additional, 1);
+        self.arr.clear(len, additional);
     }
 }
 impl<T: Default> Index<usize> for AppendVec<T> {
