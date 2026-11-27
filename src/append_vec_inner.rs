@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn empty_reclamation_guard_needs_no_allocation() {
-        let mut storage = SegmentedArr::<Slot<String>>::default();
+        let mut storage = Arr::<Slot<String>>::default();
         // SAFETY: both ranges are empty and storage remains alive.
         let guard = unsafe { RemovedValues::new(&mut storage, [0..0, 0..0]) };
         let mut guard = std::mem::ManuallyDrop::new(guard);
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(slice.copied().collect::<Vec<_>>(), vec![1, 2, 3]);
         assert_eq!(values.slice(0..0).count(), 0);
         assert_eq!(values.slice(71..71).count(), 0);
-        for range in [4..3, 0..72, usize::MAX..usize::MAX] {
+        for range in [Range { start: 4, end: 3 }, 0..72, usize::MAX..usize::MAX] {
             assert!(panics(|| {
                 values.slice(range).count();
             }));
@@ -377,7 +377,7 @@ mod tests {
         let mut values = AppendVec::with_capacity(2);
         values.push(String::from("a"));
         values.push(String::from("b"));
-        for range in [2..1, 0..3, usize::MAX..usize::MAX] {
+        for range in [Range { start: 2, end: 1 }, 0..3, usize::MAX..usize::MAX] {
             assert!(panics(|| values.retain_range_and_compact(range, 0)));
         }
         assert!(panics(|| values.make_contiguous(usize::MAX)));
@@ -553,10 +553,10 @@ mod tests {
         for bits in [32, 64] {
             let max = (1u128 << bits) - 1;
             let tail_end = 4_294_967_264u128;
-            assert_eq!(tail_end + 31 <= max, true);
+            assert!(tail_end + 31 <= max);
             assert_eq!(tail_end + 32 <= max, bits == 64);
             let prefix = max - 31;
-            assert!(prefix + 1 <= max);
+            assert!(prefix < max);
             assert!(prefix + 32 > max);
         }
     }
@@ -659,7 +659,7 @@ pub(super) fn fail_if_requested_inner(point: FailurePoint) {
 }
 impl<'a, T> RemovedValues<'a, T> {
     pub(super) unsafe fn new_inner(
-        storage: &'a mut SegmentedArr<Slot<T>>,
+        storage: &'a mut Arr<Slot<T>>,
         pending: [Range<usize>; 2],
     ) -> Self {
         Self { storage, pending }
@@ -697,7 +697,7 @@ impl<T> AppendVec<T> {
     pub(super) fn with_capacity_inner(contiguous_slots: usize) -> Self {
         Self {
             commit_lock: Mutex::new(()),
-            storage: SegmentedArr::with_capacity(contiguous_slots),
+            storage: Arr::with_capacity(contiguous_slots),
             len: AtomicUsize::new(0),
         }
     }
@@ -705,7 +705,7 @@ impl<T> AppendVec<T> {
         self.len.load(Ordering::Acquire)
     }
     pub(super) fn is_empty_inner(&self) -> bool {
-        self.len() == 0
+        self.len.load(Ordering::Acquire) == 0
     }
     pub(super) fn push_inner(&self, value: T) -> usize {
         // The argument outlives the guard: preparation unwind unlocks before dropping value.
@@ -844,7 +844,7 @@ impl<T> AppendVec<T> {
             .expect("capacity overflow");
         #[cfg(test)]
         fail_if_requested(FailurePoint::RebuildBeforeAllocation);
-        let mut target = SegmentedArr::<Slot<T>>::with_capacity(target_slots);
+        let mut target = Arr::<Slot<T>>::with_capacity(target_slots);
         // Prepare checked cursors before moving any ownership. Both cover allocated slots.
         let source = self.storage.slice(range.clone());
         let destination = target.slice_mut(0..retained_len);

@@ -1,7 +1,7 @@
 //! 一个已发布前缀的追加容器：短锁串行写入，读取不取得提交锁。
 #[path = "append_vec_inner.rs"]
 mod append_vec_inner;
-use pi_arr::SegmentedArr;
+use pi_arr::Arr;
 use std::cell::UnsafeCell;
 use std::mem::MaybeUninit;
 use std::ops::{Index, IndexMut, Range};
@@ -13,12 +13,12 @@ use std::sync::{
 /// # 用途
 /// 追加成功后立即可读的容器；不要求 T: Default。
 /// 核心不变量：0..len 恰好是已初始化前缀，后续槽位未持有 T；追加不移动旧值。
-/// 存储固定使用 SegmentedArr，不随依赖 rc feature 切换；所有共享写入只能经私有 Slot::value 的 UnsafeCell，不创建整体独占引用。
+/// 使用 Arr 的连续前缀和稳定地址扩展桶；所有共享写入只能经私有 Slot::value 的 UnsafeCell，不创建整体独占引用。
 /// 提交锁的释放/获取传递前序写入，再由 len 的 Release/Acquire 向读者发布完整前缀。
 /// Send 要求 T: Send，Sync 要求 T: Send + Sync；单线程使用仍允许不满足这些约束的 T。
 /// 不给 Slot 单独声明 Sync；使用明确的分段存储类型，避免连续数组共享增长使旧引用失效。
 ///
-/// 正向只验证类型，不构造或析构设计桩：
+/// 正向示例只验证类型约束：
 /// ```
 /// use pi_append_vec::AppendVec;
 /// use std::{cell::Cell, rc::Rc};
@@ -54,7 +54,7 @@ pub struct AppendVec<T> {
     // 只串行化追加提交，不保护已发布值的只读生命周期。
     commit_lock: Mutex<()>,
     // 地址稳定的连续区与分段桶；独占整理允许移动，不能整体放进 UnsafeCell。
-    storage: SegmentedArr<Slot<T>>,
+    storage: Arr<Slot<T>>,
     // 唯一的逻辑长度；写入完成后 Release 发布，读取 Acquire 获取；声明顺序保持在最后。
     len: AtomicUsize,
 }
@@ -64,7 +64,7 @@ pub struct AppendVec<T> {
 // 整理、回收仅经 &mut self，不能与共享访问重叠；不为 Slot 增加 Sync。
 unsafe impl<T: Send> Send for AppendVec<T> {}
 // SAFETY: 安全共享写仅在 commit_lock 内经 Slot::value.get() 写未发布尾槽位，
-// 不产生 &mut Slot、&mut SegmentedArr 或覆盖既有值的独占引用。底层原子桶发布
+// 不产生 &mut Slot、&mut Arr 或覆盖既有值的独占引用。底层原子桶发布
 // 保护 Slot 初始化；提交锁交接传递所有先前写入，len Release/Acquire 发布整个前缀。
 // T: Send 覆盖跨线程 push 的所有权转移，T: Sync 覆盖 get/迭代返回的共享引用。
 // unsafe load 由调用方排除目标的全部冲突借用并同步；它不是安全并发写入口。
@@ -168,7 +168,7 @@ fn fail_if_requested(point: FailurePoint) {
 /// 存储所有者必须活到守卫析构之后；守卫本身及其 drain 均不得分配。
 struct RemovedValues<'a, T> {
     // 旧存储的独占借用，防止值回收完成前释放存储或产生冲突访问。
-    storage: &'a mut SegmentedArr<Slot<T>>,
+    storage: &'a mut Arr<Slot<T>>,
     // 尚未析构的两段原索引范围；range.start 为各段下一个待处理索引，空范围表示完成。
     pending: [Range<usize>; 2],
 }
@@ -180,7 +180,7 @@ impl<'a, T> RemovedValues<'a, T> {
     /// pending 必须合法、互不重叠，每个索引均已分配且恰好持有一个 T；不存在其他析构责任或借用。
     /// 已转移到新存储的值不得包含在 pending 内；storage 的所有者必须在返回守卫之后析构。
     /// 本入口只转移析构责任，不调用用户代码；当前为显式未实现桩。
-    unsafe fn new(storage: &'a mut SegmentedArr<Slot<T>>, pending: [Range<usize>; 2]) -> Self {
+    unsafe fn new(storage: &'a mut Arr<Slot<T>>, pending: [Range<usize>; 2]) -> Self {
         unsafe { Self::new_inner(storage, pending) }
     }
 
@@ -330,7 +330,7 @@ impl<T> AppendVec<T> {
     }
     /// # 用途
     /// 参数 index 为逻辑索引；Acquire 观察已发布长度，越界返回 None，否则返回目标元素的独占引用。
-    /// 不分配、不取得提交锁、不改变长度；命名对应 SegmentedArr::load，而非 get_mut。
+    /// 不分配、不取得提交锁、不改变长度；命名对应 Arr::load，而非 get_mut。
     /// # Safety
     /// 返回引用存活期间，目标 T 不得存在其他共享或可变引用及任何冲突并发访问，包括 get、索引及迭代所得引用。
     /// 调用方负责跨线程同步；存储必须存活，不得与整理、移除或释放重叠。
@@ -345,6 +345,7 @@ impl<T> AppendVec<T> {
     /// // 安全：单线程，目标没有其他引用；修改结束前不读取、迭代或整理。
     /// *unsafe { values.load(index) }.unwrap() = 8;
     /// ```
+    #[allow(clippy::mut_from_ref)] // 调用方按 Safety 契约保证目标元素独占。
     pub unsafe fn load(&self, index: usize) -> Option<&mut T> {
         unsafe { self.load_inner(index) }
     }
@@ -364,6 +365,7 @@ impl<T> AppendVec<T> {
     /// // 安全：已同步观察发布，单线程且目标没有其他引用，存储保持存活。
     /// *unsafe { values.load_unchecked(index) } = 8;
     /// ```
+    #[allow(clippy::mut_from_ref)] // 同 load 的目标元素独占契约。
     pub unsafe fn load_unchecked(&self, index: usize) -> &mut T {
         unsafe { self.load_unchecked_inner(index) }
     }

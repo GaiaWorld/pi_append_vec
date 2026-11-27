@@ -1,49 +1,23 @@
-Thread-safe slotmap
+# pi_append_vec
 
-# slotmap
-
-A Rust library providing three containers with persistent unique keys to access
-stored values. Upon insertion a key
-is returned that can be used to later access or remove the values. Insertion,
-deletion and access all take O(1) time with low overhead. Great for storing
-collections of objects that need stable, safe references but have no clear
-ownership otherwise, such as game entities or graph nodes. Key maps,
-`KeyMap` are also provided that allow you to map
-further objects to the keys created by one of the slot maps. Please refer to the
-[**the documentation**](https://docs.rs/pi_slot) for more information.
+`AppendVec<T>` is a concurrent append-only vector. Writers serialize commits; readers access the published prefix without taking the commit lock. Appending does not move existing elements.
 
 ```toml
 [dependencies]
-pi_slot = "0.1"
+pi_append_vec = "0.7"
 ```
-
-# Example
-
-A short example:
 
 ```rust
-use slotmap::{SlotMap, SecondaryMap};
+use pi_append_vec::AppendVec;
 
-let sm = SlotMap::new();
-let foo = sm.insert("foo");  // Key generated on insert.
-let bar = sm.insert("bar");
-assert_eq!(sm[foo], "foo");
-assert_eq!(sm[bar], "bar");
-
-sm.remove(bar);
-let reuse = sm.insert("reuse");  // Space from bar reused.
-assert_eq!(sm.contains_key(bar), false);  // After deletion a key stays invalid.
-
-let sec = KeyMap::new();
-sec.insert(foo, "noun");  // We provide the key for secondary maps.
-sec.insert(reuse, "verb");
-
-for (key, val) in sm {
-    println!("{} is a {}", val, sec[key]);
-}
+let values = AppendVec::with_capacity(4);
+let index = values.push("hello");
+assert_eq!(values.get(index), Some(&"hello"));
+assert_eq!(values.iter().copied().collect::<Vec<_>>(), ["hello"]);
 ```
 
-# License
+`push` returns the index after publishing the value. Mutation through `get_mut` or `iter_mut`, compaction, and clearing require an exclusive borrow. `load` and `load_unchecked` require the caller to guarantee exclusive access to the target element.
 
-`slotmap` is released under the Zlib license, a permissive license. It is
-OSI and FSF approved and GPL compatible.
+Version 0.7.1 updates the underlying array and bucket crates without changing the public `AppendVec` API. See the [API documentation](https://docs.rs/pi_append_vec) for details.
+
+Licensed under MIT or Apache-2.0.

@@ -15,15 +15,15 @@
 
 源码真实定义 AppendVec<T> 的提交锁 commit_lock、分段存储 storage、唯一已发布长度 len；用户要求 len 声明在字段最后，此顺序不构成 Rust 默认表示的物理布局承诺；Slot<T> 用 UnsafeCell<MaybeUninit<T>> 表示未初始化备用槽位与共享追加时合法的单槽位写入边界。具体字段约束与接口契约以壳源码为准。storage 本身不整体放入 UnsafeCell，避免共享读期间创建覆盖旧元素的整体独占引用。
 
-直接复用 pi_arr 分段存储，不再叠加本库的另一种 Vec。cargo tree -e features 核实当前未启用 rc。已查阅 pi_arr 0.33.0 的 SegmentedArr::load_alloc_ptr/get/slice 与 OwnedSlice：默认模式增长分段桶不移动旧元素，元数据借用不创建覆盖已有元素的整体可变引用。新增 Slot::default 声明补齐底层分配要求，但只构造未初始化存储，不要求 T: Default。
+直接复用 pi_arr 分段存储，不再叠加本库的另一种 Vec。pi_arr 0.35.0 的 Arr 是唯一的分段数组类型。通过 Arr::load_alloc_ptr/get/slice，增长分段桶不移动旧元素，元数据借用不创建覆盖已有元素的整体可变引用。新增 Slot::default 声明补齐底层分配要求，但只构造未初始化存储，不要求 T: Default。
 
-共享追加必须只经 Slot::value.get() 写入未发布尾槽位，不创建 &mut Slot 或整个 storage 的独占引用。用户新增要求：参考 SegmentedArr 提供 unsafe load(&self, index) -> Option<&mut T> 与 unsafe load_unchecked(&self, index) -> &mut T；前者检查已发布长度，后者由调用方保证已同步观察到有效索引。二者只借出目标 T，不分配、不取得提交锁；引用期间调用方排除目标元素所有冲突引用和并发访问，包括迭代引用。已有安全 get/get_mut 不改名或更改返回类型。Mutex 解锁/加锁传递前序提交的写入，长度 Release 发布与读者 Acquire 观察使整个前缀可见，不能只论证最后一个槽位。容器边界现已声明 Send for T: Send、Sync for T: Send + Sync，证明紧邻 unsafe impl；storage 私有，底层 Slot 不声明 Sync。单线程泛型能力不收紧。真实实现仍须核验是否遵守这些别名、所有权与发布约束，声明不代替 Miri 或并发验收。
+共享追加必须只经 Slot::value.get() 写入未发布尾槽位，不创建 &mut Slot 或整个 storage 的独占引用。用户新增要求：参考底层数组提供 unsafe load(&self, index) -> Option<&mut T> 与 unsafe load_unchecked(&self, index) -> &mut T；前者检查已发布长度，后者由调用方保证已同步观察到有效索引。二者只借出目标 T，不分配、不取得提交锁；引用期间调用方排除目标元素所有冲突引用和并发访问，包括迭代引用。已有安全 get/get_mut 不改名或更改返回类型。Mutex 解锁/加锁传递前序提交的写入，长度 Release 发布与读者 Acquire 观察使整个前缀可见，不能只论证最后一个槽位。容器边界现已声明 Send for T: Send、Sync for T: Send + Sync，证明紧邻 unsafe impl；storage 私有，底层 Slot 不声明 Sync。单线程泛型能力不收紧。真实实现仍须核验是否遵守这些别名、所有权与发布约束，声明不代替 Miri 或并发验收。
 
-已补齐私有 RemovedValues 守卫：独占借用旧 SegmentedArr，持有两个不重叠的待析构索引范围。范围保留映射为 0..start、end..old_len；容器 Drop 映射为 0..old_len 和空范围。守卫不分配；显式 drain 先推进游标再启动用户析构，首个 panic 展开时由守卫 Drop 接续，旧存储所有者最后释放。定位已分配槽位不得引入额外分配或可失败的边界逻辑；所有权提交阶段只能使用准备阶段已证实有效的索引。守卫声明、流程和配对实现均已完成，析构 panic 接续已通过验收。
+已补齐私有 RemovedValues 守卫：独占借用旧 Arr，持有两个不重叠的待析构索引范围。范围保留映射为 0..start、end..old_len；容器 Drop 映射为 0..old_len 和空范围。守卫不分配；显式 drain 先推进游标再启动用户析构，首个 panic 展开时由守卫 Drop 接续，旧存储所有者最后释放。定位已分配槽位不得引入额外分配或可失败的边界逻辑；所有权提交阶段只能使用准备阶段已证实有效的索引。守卫声明、流程和配对实现均已完成，析构 panic 接续已通过验收。
 
-技术闭包：壳中 SharedIter 持有 pi_buckets::BucketIter<Slot<T>>，ExclusiveIter 持有 pi_arr::SegmentedIterMut<Slot<T>>；芯返回这两个真实类型，公共入口仍返回 impl Iterator。只逐槽投影已初始化 T，禁止跨分配伪造切片或将 Slot 切片重解释为 T 切片。当前底层 settle/remain_settle 会先移出存储且可能在安装前失败，不能直接当作本库强准备失败保证的实现；应准备独立目标存储，按本库已定顺序转移和安装。
+技术闭包：壳中 SharedIter 持有 pi_buckets::BucketIter<Slot<T>>，ExclusiveIter 持有 pi_arr::SegmentedIterMut<Slot<T>>；芯返回这两个真实类型，公共入口仍返回 impl Iterator。只逐槽投影已初始化 T，禁止跨分配伪造切片或将 Slot 切片重解释为 T 切片。当前底层 compact_prefix/compact_range 会先移出存储且可能在安装前失败，不能直接当作本库强准备失败保证的实现；应准备独立目标存储，按本库已定顺序转移和安装。
 
-allocated_slots 的可行枚举使用 pi_arr 0.33.0 的公开 SegmentedArr::segments 与 pi_buckets 0.5.0 的 BUCKETS、SKIP、MAX_ENTRIES、Location::{bucket_len,bucket_capacity}，新增同版本直接依赖；不访问私有桶表、不猜桶数。每个桶的完整绝对区间独立枚举，缺桶跳过，不把一次 len 当容量；具体边界与伪码单源在 AppendVec::allocated_slots。
+allocated_slots 的可行枚举使用 pi_arr 0.35.0 的公开 Arr::segments 与 pi_buckets 0.6.0 的 BUCKETS、SKIP、MAX_ENTRIES、Location::{bucket_len,bucket_capacity}，新增同版本直接依赖；不访问私有桶表、不猜桶数。每个桶的完整绝对区间独立枚举，缺桶跳过，不把一次 len 当容量；具体边界与伪码单源在 AppendVec::allocated_slots。
 
 32/64 位均使用 checked_add；MAX_ENTRIES 是索引，尾后为 MAX_ENTRIES + 1（按公开常量可在两种位宽表示）。不能先把连续长度加全部理论桶容量。尾桶绝对尾后不可表示时停止扫描，因为 push 必须在分配前拒绝该整桶；这也保证实际物理总数可由 usize 精确计数。ZST 的物理槽位同样受此计数约束，不以字节数为零绕过。桶偏移先减 SKIP，再做受检前缀加法，不能用倍增尾桶长度产生 32 位中间溢出。此规则属于既有容量溢出失败契约，未引入计数饱和或截断语义。
 
@@ -40,7 +40,7 @@ allocated_slots 的可行枚举使用 pi_arr 0.33.0 的公开 SegmentedArr::segm
 3. 已确认：slice 与 retain_range_and_compact 均严格要求 start <= end <= len，不裁剪；非法范围在读取元素或分配、移动、析构前 panic，容器不变。slice 以入口一次 Acquire 长度快照校验；合法空范围允许，范围保留操作的空范围表示移除全部值。
 4. 已确认：重建先准备新存储与回收所需全部资源，准备阶段失败时旧容器不变；随后在无可展开操作的所有权提交段安装新存储与新长度，最后才析构被移除值。用户 Drop panic 时容器已是有效结果（clear 为空），局部守卫负责剩余值，避免重复析构；双重 panic 按 Rust 规则终止。完整流程单源在 AppendVec::retain_range_and_compact，其他入口只写映射差异。Drop 自身不准备新存储、不分配，使用同一撤销所有权规则回收。用户确认重建按精确目标槽位数执行：make_contiguous 为 len + additional，范围保留为 range.len() + additional，clear 为 additional；不隐式沿用旧备用容量，旧分段桶回收，clear(0) 安装无槽位空存储。目标计数为可访问槽位而非分配器字节，ZST 也使用有限计数；加法溢出在修改前失败。
 5. 已确认 allocated_slots 接受并发近似观察，不取得提交锁、不分配；可漏计统计期间新分配的桶，不与单独的 len 保证一致快照，不能作为访问边界或免分配保证。无并发写入且操作完成后应准确。枚举路径和计数边界现已核实，不能以近似为由返回无依据计数。
-6. 用户确认直接使用 pi_arr::SegmentedArr，容器字段、RemovedValues 字段及构造参数和芯签名均使用具体类型，不使用受 rc feature 切换影响的 Arr 别名。稳定地址前提由具体分段类型表达。容器边界的线程 trait 已声明，不增加全局泛型约束。
+6. 容器和 RemovedValues 直接使用 pi_arr::Arr；从 pi_arr 0.35 起该名称指具体的分段存储类型。稳定地址前提由具体分段类型表达。容器边界的线程 trait 已声明，不增加全局泛型约束。
 
 当前没有需用户新增选择的局部设计待定；全部业务芯保持明确失败桩。没有待定的业务流程不再使用旧发布协议解释。
 
@@ -77,4 +77,4 @@ zcode_impl 复杂路线完成全部 23 个工作项，外部 TODO 扫描与独�
 
 优先尝试 checkRound，但工具初始化报“无法安装依赖 (Unable to resolve the latest dependency version)”，未执行该 API；改用实际 Cargo 命令取得上述原输出。git diff -- Cargo.lock 为空，依赖直接声明未改动锁文件。32 位目标编译、Miri、并发与失败注入业务验收均待实现后验证；当前 32/64 位边界结论来自公开常量和受检运算路径的源码核实，不冒称跨目标运行通过。
 
-依赖 pi_arr 0.33.0、pi_buckets 0.5.0、pi_share 2.1.0；Cargo 元数据移除 lock-free 承诺。保留用户现有 pi_share 依赖。
+当前直接依赖为 pi_arr 0.35.0、pi_buckets 0.6.0。

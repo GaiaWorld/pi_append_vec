@@ -1,10 +1,11 @@
 [package]
 name = "pi_append_vec"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["suncy <530739162@qq.com>"]
 edition = "2021"
 description = "Append-only vector with serialized commits and published-prefix reads"
-repository = "https://github.com/GaiaWorld/pi_slot.git"
+repository = "https://github.com/GaiaWorld/pi_append_vec"
+documentation = "https://docs.rs/pi_append_vec"
 license = "MIT OR Apache-2.0"
 keywords = ["pi", "vec", "append-only"]
 readme = "README.md"
@@ -12,5 +13,5 @@ categories = ["data-structures", "concurrency"]
 
 
 [dependencies]
-pi_arr = "0.33"
-pi_buckets = "0.5"
+pi_arr = "0.35"
+pi_buckets = "0.6"
